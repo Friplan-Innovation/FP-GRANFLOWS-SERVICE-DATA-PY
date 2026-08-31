@@ -1,0 +1,41 @@
+# CI do pacote. Roda o mesmo que a verificação local faz em container:
+# testes, tipos e lint. Sem deploy — este repositório não implanta nada, é
+# consumido por tag pelos seis serviços.
+name: CI
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  qualidade:
+    name: Testes, tipos e lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Instalação
+        run: pip install -e ".[dev]"
+
+      - name: Testes
+        run: python -m pytest -q
+
+      # `granflows_service_data` e não `.`: os testes usam fixtures que o mypy
+      # strict recusaria por motivo que não protege ninguém. O que precisa
+      # estar tipado é o que os seis serviços importam.
+      - name: Tipos
+        run: mypy granflows_service_data
+
+      - name: Lint
+        run: ruff check .
