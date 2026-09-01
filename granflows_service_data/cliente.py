@@ -1,25 +1,19 @@
 """
 O cliente HTTP da Data API dos serviços.
 
-**Por que este pacote existe.** Os seis microserviços têm o mesmo módulo
-`platform/` copiado entre si — e ele já divergiu: 81 linhas de diferença entre
-o `session_store.py` do Book de Planejamento e o do Data Book, contra 12 entre
-Data Book e Mapa de Juntas. São duas gerações do mesmo arquivo convivendo, e o
-piloto está na antiga.
-
-Escrever o cliente da Data API seis vezes produziria seis gerações do mesmo
-defeito. Este pacote é a alternativa: uma implementação, versionada por tag, que
-os seis instalam.
+**Por que este pacote existe.** O contrato de erros e as garantias de falha
+abaixo precisam ser escritos UMA vez. Quando cada serviço traz a sua própria
+camada HTTP, elas divergem — e a divergência só aparece no serviço que ficou
+para trás, tipicamente em produção, tipicamente como um erro traduzido para o
+status errado.
 
 **Duas camadas, de propósito.** `ClienteDataApi` guarda o que é do PROCESSO — a
 URL base, o timeout, o pool de conexões. `SessaoDataApi` guarda o que é da
-REQUISIÇÃO — o scopeToken daquela pessoa. Não dá para chamar uma rota sem
-passar por `cliente.para(token)`, porque os verbos só existem na sessão. É a
-mesma ideia de `withScope()` do lado da API: a porta é única e o escopo é
-obrigatório para atravessá-la.
+REQUISIÇÃO — o token de escopo daquela pessoa. Não dá para chamar uma rota sem
+passar por `cliente.para(token)`, porque os verbos só existem na sessão: a porta
+é única e o escopo é obrigatório para atravessá-la.
 
-**A URL base vem de configuração, nunca de requisição.** É o que fecha SSRF, e é
-a mesma regra que `platform/config.py` já aplica ao `platform_api_url`. O
+**A URL base vem de configuração, nunca de requisição.** É o que fecha SSRF. O
 construtor valida o formato e recusa o que não for `scheme://host[:porta][/base]`.
 
 **Falha fechada.** Timeout, erro de rede e 5xx viram `DataApiIndisponivel`, que
@@ -53,7 +47,7 @@ from .erros import (
 # Curto de propósito. A Data API é vizinha dentro do mesmo Container Apps
 # Environment; se ela demora mais que isto, está degradada, e segurar a thread
 # do Gunicorn esperando piora a degradação em vez de contorná-la. Mesmo
-# raciocínio do `socket_timeout` de `platform/session_store.py`.
+# raciocínio de qualquer timeout de sessão: falhar rápido e fechado.
 TIMEOUT_PADRAO_SEGUNDOS = 10.0
 
 # Upload de artefato é o único caminho que move megabytes e legitimamente leva
@@ -289,7 +283,8 @@ def _detalhe(resposta: httpx.Response) -> str:
 
 
 def _url_de_api(bruto: str, *, permitir_http: bool) -> str:
-    """Mesma validação de `_url_de_api` em `platform/config.py` dos serviços.
+    """Validação da URL base, no mesmo espírito da que os serviços aplicam à URL
+    do plano de controle.
 
     Aceita caminho (`https://api.exemplo/v1`), porque é uma base e não um
     endpoint pronto. Recusa query e fragmento: os dois seriam descartados ou

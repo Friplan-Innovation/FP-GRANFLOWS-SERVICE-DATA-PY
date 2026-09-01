@@ -1,6 +1,6 @@
 # CI do pacote. Roda o mesmo que a verificação local faz em container:
 # testes, tipos e lint. Sem deploy — este repositório não implanta nada, é
-# consumido por tag pelos seis serviços.
+# consumido por tag pelos serviços.
 name: CI
 
 on:
@@ -33,7 +33,7 @@ jobs:
 
       # `granflows_service_data` e não `.`: os testes usam fixtures que o mypy
       # strict recusaria por motivo que não protege ninguém. O que precisa
-      # estar tipado é o que os seis serviços importam.
+      # estar tipado é o que os serviços importam.
       - name: Tipos
         run: mypy granflows_service_data
 

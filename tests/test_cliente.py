@@ -2,14 +2,14 @@
 O contrato do cliente, exercitado sem servidor e sem nenhum código de serviço.
 
 **Por que sem código de serviço.** O pacote só está pronto quando for
-importável de fora — se estes testes precisassem do Book de Planejamento no
-caminho, o "pacote" seria uma pasta do Book com outro nome, e a próxima
-divergência entre os seis já estaria plantada.
+importável de fora — se estes testes precisassem de um serviço consumidor no
+caminho, o "pacote" seria uma pasta daquele serviço com outro nome, e a próxima
+divergência entre consumidores já estaria plantada.
 
 `httpx.MockTransport` deixa afirmar a tradução de status em exceção sem subir
 nada. O que interessa aqui não é o HTTP — é que **cada status vira exatamente
-uma exceção**, porque é essa tradução que decide se o microserviço responde 503
-ou 404, e errar isso desfaz garantias que a Data API construiu do outro lado.
+uma exceção**, porque é essa tradução que decide se o serviço responde 503 ou
+404, e errar isso desfaz garantias que a API construiu do outro lado.
 """
 
 from __future__ import annotations
@@ -73,8 +73,7 @@ class TestUrlBase:
             ClienteDataApi("http://dataapi.interno")
 
     def test_aceita_http_quando_liberado_explicitamente(self) -> None:
-        # O escape hatch do desenvolvimento local, igual ao de
-        # platform/config.py dos serviços. Explícito, nunca por default.
+        # O escape hatch do desenvolvimento local. Explícito, nunca por default.
         cliente = ClienteDataApi("http://localhost:3000", permitir_http=True)
         assert cliente.base_url == "http://localhost:3000"
 
@@ -105,7 +104,7 @@ class TestSessao:
             visto["auth"] = req.headers.get("authorization", "")
             return httpx.Response(200, json={"ok": True})
 
-        cliente_com(handler).para(TOKEN).get("/v1/book/jobs")
+        cliente_com(handler).para(TOKEN).get("/v1/exemplo/itens")
         assert visto["auth"] == f"Bearer {TOKEN}"
 
 
@@ -133,7 +132,7 @@ class TestTraducaoDeErro:
     def test_status_vira_excecao(self, status: int, esperado: type[Exception]) -> None:
         sessao = cliente_com(responde(status, {"message": "detalhe"})).para(TOKEN)
         with pytest.raises(esperado):
-            sessao.get("/v1/book/jobs")
+            sessao.get("/v1/exemplo/itens")
 
     def test_404_nao_vira_403(self) -> None:
         # A Data API responde 404 tanto para "não existe" quanto para "não é
@@ -142,20 +141,21 @@ class TestTraducaoDeErro:
         # lado.
         sessao = cliente_com(responde(404)).para(TOKEN)
         with pytest.raises(RecursoNaoEncontrado):
-            sessao.get("/v1/book/jobs/qualquer-id")
+            sessao.get("/v1/exemplo/itens/qualquer-id")
 
     def test_conflito_carrega_a_frase_da_api(self) -> None:
-        # "emissão já registrada" é literal do contrato, e o Book a reconhece.
+        # A frase da API entra na exceção porque o serviço às vezes a repassa a
+        # quem chamou — 409 é resposta esperada, não defeito.
         sessao = cliente_com(responde(409, {"message": "emissão já registrada"})).para(TOKEN)
         with pytest.raises(Conflito, match="emissão já registrada"):
-            sessao.post("/v1/book/emissoes", {"numero": "MRB-1"})
+            sessao.post("/v1/exemplo/registros", {"numero": "REG-1"})
 
     def test_mensagem_de_erro_nao_contem_o_token(self) -> None:
         # A garantia que mais importa deste arquivo. O token viaja em cabeçalho
         # e nunca é interpolado em string nenhuma — nem em exceção, nem em log.
         sessao = cliente_com(responde(500, {"message": "boom"})).para(TOKEN)
         with pytest.raises(DataApiIndisponivel) as capturado:
-            sessao.get("/v1/book/jobs")
+            sessao.get("/v1/exemplo/itens")
         assert TOKEN not in str(capturado.value)
         assert TOKEN not in repr(capturado.value)
 
@@ -172,7 +172,7 @@ class TestFalhaFechada:
 
         sessao = cliente_com(handler).para(TOKEN)
         with pytest.raises(DataApiIndisponivel, match="timeout"):
-            sessao.get("/v1/book/jobs")
+            sessao.get("/v1/exemplo/itens")
 
     def test_erro_de_rede_vira_indisponivel(self) -> None:
         def handler(req: httpx.Request) -> httpx.Response:
@@ -180,7 +180,7 @@ class TestFalhaFechada:
 
         sessao = cliente_com(handler).para(TOKEN)
         with pytest.raises(DataApiIndisponivel, match="erro de rede"):
-            sessao.get("/v1/book/jobs")
+            sessao.get("/v1/exemplo/itens")
 
     def test_lista_vazia_nunca_substitui_indisponibilidade(self) -> None:
         # Uma lista vazia é indistinguível de um histórico apagado. Se a API
@@ -190,7 +190,7 @@ class TestFalhaFechada:
 
         sessao = cliente_com(handler).para(TOKEN)
         with pytest.raises(DataApiIndisponivel):
-            resultado = sessao.get("/v1/book/emissoes")
+            resultado = sessao.get("/v1/exemplo/registros")
             assert resultado != []  # nunca alcançado; documenta a intenção
 
     def test_2xx_que_nao_e_json_falha_fechado(self) -> None:
@@ -199,7 +199,7 @@ class TestFalhaFechada:
 
         sessao = cliente_com(handler).para(TOKEN)
         with pytest.raises(DataApiIndisponivel, match="não é JSON"):
-            sessao.get("/v1/book/jobs")
+            sessao.get("/v1/exemplo/itens")
 
     def test_sem_retry_em_escrita(self) -> None:
         # Uma escrita retentada às cegas é uma emissão duplicada esperando o
@@ -212,7 +212,7 @@ class TestFalhaFechada:
 
         sessao = cliente_com(handler).para(TOKEN)
         with pytest.raises(DataApiIndisponivel):
-            sessao.post("/v1/book/emissoes", {"numero": "MRB-1"})
+            sessao.post("/v1/exemplo/registros", {"numero": "REG-1"})
         assert tentativas["n"] == 1
 
     def test_nao_segue_redirect(self) -> None:
@@ -223,7 +223,7 @@ class TestFalhaFechada:
 
         sessao = cliente_com(handler).para(TOKEN)
         with pytest.raises(DataApiIndisponivel):
-            sessao.get("/v1/book/jobs")
+            sessao.get("/v1/exemplo/itens")
 
 
 # ── o caminho feliz ─────────────────────────────────────────────────────────
@@ -232,7 +232,7 @@ class TestFalhaFechada:
 class TestCaminhoFeliz:
     def test_get_devolve_o_json(self) -> None:
         sessao = cliente_com(responde(200, [{"id": "a"}, {"id": "b"}])).para(TOKEN)
-        assert sessao.get("/v1/book/jobs") == [{"id": "a"}, {"id": "b"}]
+        assert sessao.get("/v1/exemplo/itens") == [{"id": "a"}, {"id": "b"}]
 
     def test_get_manda_os_params(self) -> None:
         visto: dict[str, str] = {}
@@ -241,8 +241,9 @@ class TestCaminhoFeliz:
             visto.update(dict(req.url.params))
             return httpx.Response(200, json=[])
 
-        cliente_com(handler).para(TOKEN).get("/v1/book/jobs", params={"identificacao": "TAG-4410"})
-        assert visto == {"identificacao": "TAG-4410"}
+        sessao = cliente_com(handler).para(TOKEN)
+        sessao.get("/v1/exemplo/itens", params={"identificacao": "REF-4410"})
+        assert visto == {"identificacao": "REF-4410"}
 
     def test_post_manda_o_corpo(self) -> None:
         visto: dict[str, object] = {}
@@ -253,13 +254,14 @@ class TestCaminhoFeliz:
             visto.update(_json.loads(req.content))
             return httpx.Response(201, json={"id": "novo"})
 
-        resposta = cliente_com(handler).para(TOKEN).post("/v1/book/jobs", {"estado": "na_fila"})
-        assert visto == {"estado": "na_fila"}
+        sessao = cliente_com(handler).para(TOKEN)
+        resposta = sessao.post("/v1/exemplo/itens", {"estado": "pendente"})
+        assert visto == {"estado": "pendente"}
         assert resposta == {"id": "novo"}
 
     def test_204_devolve_none(self) -> None:
         sessao = cliente_com(responde(204)).para(TOKEN)
-        assert sessao.patch("/v1/book/jobs/x", {"progresso": 50}) is None
+        assert sessao.patch("/v1/exemplo/itens/x", {"progresso": 50}) is None
 
     def test_envio_de_arquivo(self) -> None:
         visto: dict[str, object] = {}
@@ -270,9 +272,9 @@ class TestCaminhoFeliz:
             return httpx.Response(201, json={"id": "artefato"})
 
         resposta = cliente_com(handler).para(TOKEN).enviar_arquivo(
-            "/v1/book/artefatos",
+            "/v1/exemplo/arquivos",
             campo="arquivo",
-            nome="book.pdf",
+            nome="documento.pdf",
             conteudo=io.BytesIO(b"%PDF-1.7 conteudo"),
             tipo="application/pdf",
             campos={"categoria": "pdf"},
@@ -284,14 +286,14 @@ class TestCaminhoFeliz:
         def handler(_req: httpx.Request) -> httpx.Response:
             return httpx.Response(200, content=b"%PDF-1.7 bytes")
 
-        assert cliente_com(handler).para(TOKEN).baixar("/v1/book/artefatos/x/conteudo") == (
+        assert cliente_com(handler).para(TOKEN).baixar("/v1/exemplo/arquivos/x/conteudo") == (
             b"%PDF-1.7 bytes"
         )
 
     def test_baixar_traduz_erro_igual(self) -> None:
         sessao = cliente_com(responde(404)).para(TOKEN)
         with pytest.raises(RecursoNaoEncontrado):
-            sessao.baixar("/v1/book/artefatos/x/conteudo")
+            sessao.baixar("/v1/exemplo/arquivos/x/conteudo")
 
 
 # ── o repr ──────────────────────────────────────────────────────────────────

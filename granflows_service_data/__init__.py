@@ -1,14 +1,14 @@
-"""Cliente Python da Data API dos microserviços GranFlows.
+"""Cliente Python da GranFlows Data API.
 
-Uma implementação, versionada por tag, que os seis serviços instalam — em vez
-de seis cópias divergindo entre si, que é o que já aconteceu com o módulo
-`platform/` (81 linhas de diferença entre duas gerações do mesmo arquivo).
+Uma implementação, versionada por tag, que os serviços instalam — em vez de uma
+cópia por serviço, que divergiria e cuja divergência só apareceria no serviço
+que ficasse para trás.
 
     from granflows_service_data import ClienteDataApi, RecursoNaoEncontrado
 
-    cliente = ClienteDataApi("https://ca-granflows-dev-dataapi.interno")   # no boot
-    sessao = cliente.para(identidade.scope_token)                          # por requisição
-    jobs = sessao.get("/v1/book/jobs")
+    cliente = ClienteDataApi(cfg.data_api_url)          # no boot
+    sessao = cliente.para(identidade.data_api_token)    # por requisição
+    itens = sessao.get("/v1/exemplo/itens")
 
 Ver README.md para o contrato de erros e a regra de falha fechada.
 """
