@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "granflows-service-data"
-version = "0.1.0"
+version = "0.1.1"
 description = "Cliente Python da Data API dos microserviços GranFlows"
 readme = "README.md"
 requires-python = ">=3.11"

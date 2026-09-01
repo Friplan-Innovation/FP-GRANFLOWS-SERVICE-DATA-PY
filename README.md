@@ -102,6 +102,14 @@ código de nenhum serviço consumidor**. É a propriedade que define "pacote": s
 precisassem de um serviço no caminho, isto seria uma pasta daquele serviço com
 outro nome.
 
+## Tipos
+
+O pacote traz `py.typed` (PEP 561), então quem o instala recebe os tipos —
+`mypy` confere as chamadas ao cliente no código do serviço consumidor. Sem esse
+marcador o pacote é tipado e ninguém aproveita: o consumidor vê
+`Skipping analyzing "granflows_service_data"` e cada chamada passa a valer
+`Any`, o que é pior que não ter tipos, porque parece verificado.
+
 ## Versionamento
 
 `MAJOR.MINOR.PATCH`. Mudança no contrato de erros — uma exceção nova, ou um
